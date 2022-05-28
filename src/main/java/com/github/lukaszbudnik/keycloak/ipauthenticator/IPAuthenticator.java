@@ -1,5 +1,6 @@
 package com.github.lukaszbudnik.keycloak.ipauthenticator;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -21,10 +22,10 @@ public class IPAuthenticator implements Authenticator {
         UserModel user = context.getUser();
 
         String remoteIPAddress = context.getConnection().getRemoteAddr();
-        String allowedIPAddress = getAllowedIPAddress(context);
+        String[] allowedIPAddress = getAllowedIPAddress(context);
 
-        if (!allowedIPAddress.equals(remoteIPAddress)) {
-            logger.infof("IPs do not match. Realm %s expected %s but user %s logged from %s", realm.getName(), allowedIPAddress, user.getUsername(), remoteIPAddress);
+        if (Arrays.stream(allowedIPAddress).noneMatch(remoteIPAddress::equals)) {
+            logger.infof("IPs do not match. User %s logged in from untrusted ip %s", realm.getName(), user.getUsername(), remoteIPAddress);
             UserCredentialManager credentialManager = session.userCredentialManager();
 
             if (!credentialManager.isConfiguredFor(realm, user, OTPCredentialModel.TYPE)) {
@@ -39,10 +40,10 @@ public class IPAuthenticator implements Authenticator {
         context.success();
     }
 
-    private String getAllowedIPAddress(AuthenticationFlowContext context) {
+    private String[] getAllowedIPAddress(AuthenticationFlowContext context) {
         AuthenticatorConfigModel configModel = context.getAuthenticatorConfig();
         Map<String, String> config = configModel.getConfig();
-        return config.get(IPAuthenticatorFactory.ALLOWED_IP_ADDRESS_CONFIG);
+        return config.get(IPAuthenticatorFactory.ALLOWED_IP_ADDRESS_CONFIG).split(",");
     }
 
     @Override
