@@ -1,13 +1,10 @@
 package com.github.lukaszbudnik.keycloak.ipauthenticator;
 
-import java.util.Arrays;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.Map;
 
-import inet.ipaddr.AddressStringException;
-import inet.ipaddr.IPAddress;
-import inet.ipaddr.IPAddressSeqRange;
-import inet.ipaddr.IPAddressString;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
@@ -26,29 +23,35 @@ public class IPAuthenticator implements Authenticator {
         UserModel user = context.getUser();
 
         String remoteIPAddress = context.getConnection().getRemoteAddr();
-        String[] allowedIPAddress = getAllowedIPAddress(context);
+        String[] hostNames = getAllowedDynDnsHostnames(context);
 
 
-        if (allowedIPAddress.length != 2) {
+        if (hostNames.length < 1) {
             user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("force"));
+            logger.warn("Dyndns hostnames missing in configuration. Please configure plugin.");
             context.success();
             return;
         }
 
         try {
-            if (!checkIPIsInGivenRange(remoteIPAddress, allowedIPAddress[0], allowedIPAddress[1])) {
-                logger.infof("IPs do not match. User %s logged in from untrusted ip %s", realm.getName(), user.getUsername(), remoteIPAddress);
-                UserCredentialManager credentialManager = session.userCredentialManager();
-
-                if (!credentialManager.isConfiguredFor(realm, user, OTPCredentialModel.TYPE)) {
-                    user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
+            for (String hostnameToCheck : getAllowedDynDnsHostnames(context)) {
+                if (checkIPIsMatchingDynDnsName(remoteIPAddress, hostnameToCheck)) {
+                    user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("skip"));
+                    logger.infof("Remote ip %s matched with one of the given dyndns hostnames!", remoteIPAddress);
+                    context.success();
+                    return;
                 }
-
-                user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("force"));
-            } else {
-                user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("skip"));
             }
-        } catch (AddressStringException e) {
+
+            logger.infof("DnyDns resolved ips do not match remote user ip. User %s logged in from untrusted ip %s", user.getUsername(), remoteIPAddress);
+            UserCredentialManager credentialManager = session.userCredentialManager();
+
+            if (!credentialManager.isConfiguredFor(realm, user, OTPCredentialModel.TYPE)) {
+                user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
+            }
+
+            user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("force"));
+        } catch (UnknownHostException e) {
             user.setAttribute(IP_BASED_OTP_CONDITIONAL_USER_ATTRIBUTE, Collections.singletonList("force"));
             context.success();
             return;
@@ -57,20 +60,18 @@ public class IPAuthenticator implements Authenticator {
         context.success();
     }
 
-    public static boolean checkIPIsInGivenRange (String inputIP, String rangeStartIP, String rangeEndIP)
-            throws AddressStringException {
-        IPAddress startIPAddress = new IPAddressString(rangeStartIP).getAddress();
-        IPAddress endIPAddress = new IPAddressString(rangeEndIP).getAddress();
-        IPAddressSeqRange ipRange = startIPAddress.toSequentialRange(endIPAddress);
-        IPAddress inputIPAddress = new IPAddressString(inputIP).toAddress();
+    public static boolean checkIPIsMatchingDynDnsName (String inputIP, String dynDnsHostname)
+            throws UnknownHostException {
+        InetAddress dynDnsAddress = InetAddress.getByName(dynDnsHostname);
+        String ipAddress = dynDnsAddress.getHostAddress();
 
-        return ipRange.contains(inputIPAddress);
+        return ipAddress.equals(inputIP);
     }
 
-    private String[] getAllowedIPAddress(AuthenticationFlowContext context) {
+    private String[] getAllowedDynDnsHostnames(AuthenticationFlowContext context) {
         AuthenticatorConfigModel configModel = context.getAuthenticatorConfig();
         Map<String, String> config = configModel.getConfig();
-        return config.get(IPAuthenticatorFactory.ALLOWED_IP_ADDRESS_CONFIG).split(",");
+        return config.get(IPAuthenticatorFactory.ALLOWED_DYNDNS_HOSTNAMES_CONFIG).split(",");
     }
 
     @Override

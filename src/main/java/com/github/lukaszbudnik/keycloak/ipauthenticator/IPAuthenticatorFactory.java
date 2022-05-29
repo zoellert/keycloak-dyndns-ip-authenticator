@@ -18,7 +18,7 @@ public class IPAuthenticatorFactory implements AuthenticatorFactory {
     public static final String ID = "ipauthenticator";
 
     private static final Authenticator AUTHENTICATOR_INSTANCE = new IPAuthenticator();
-    static final String ALLOWED_IP_ADDRESS_CONFIG = "allowed_ip_address";
+    static final String ALLOWED_DYNDNS_HOSTNAMES_CONFIG = "allowed_dyndns_hostnames";
 
     @Override
     public Authenticator create(KeycloakSession keycloakSession) {
@@ -27,7 +27,7 @@ public class IPAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getDisplayType() {
-        return "IP Authenticator";
+        return "DynDns IP Authenticator";
     }
 
     @Override
@@ -47,7 +47,7 @@ public class IPAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getHelpText() {
-        return "Limits access to only allowed IP Address";
+        return "Limits access to only allowed DynDns Names / IP addresses";
     }
 
     @Override
@@ -55,9 +55,9 @@ public class IPAuthenticatorFactory implements AuthenticatorFactory {
         ProviderConfigProperty name = new ProviderConfigProperty();
 
         name.setType(STRING_TYPE);
-        name.setName(ALLOWED_IP_ADDRESS_CONFIG);
-        name.setLabel("IP Address from which sign ins are allowed");
-        name.setHelpText("Only accepts IP addresses, no CIDR nor masks nor ranges supported");
+        name.setName(ALLOWED_DYNDNS_HOSTNAMES_CONFIG);
+        name.setLabel("DynDns hostnames from which ip addresses sign ins are allowed");
+        name.setHelpText("Only accepts a list of comma-separated dyndns hostnames");
 
         return Collections.singletonList(name);
     }
