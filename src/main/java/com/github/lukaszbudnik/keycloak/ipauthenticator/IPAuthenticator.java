@@ -44,9 +44,9 @@ public class IPAuthenticator implements Authenticator {
             }
 
             logger.infof("DnyDns resolved ips do not match remote user ip. User %s logged in from untrusted ip %s", user.getUsername(), remoteIPAddress);
-            UserCredentialManager credentialManager = session.userCredentialManager();
+            SubjectCredentialManager credentialManager = user.credentialManager();
 
-            if (!credentialManager.isConfiguredFor(realm, user, OTPCredentialModel.TYPE)) {
+            if (!credentialManager.isConfiguredFor(OTPCredentialModel.TYPE)) {
                 user.addRequiredAction(UserModel.RequiredAction.CONFIGURE_TOTP);
             }
 
